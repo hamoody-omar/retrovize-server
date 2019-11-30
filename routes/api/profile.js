@@ -23,33 +23,8 @@ router.post(
       return res.status(400).jsonp(errors);
     }
 
-    /*const drivingLicense = {
-      user: req.user.id,
-      firstName: req.body.firstName,
-      middleName: req.body.middleName? req.body.middleName:"",
-      lastName: req.body.lastName,
-      licenseNumber: req.body.licenseNumber,
-      issuingMonth: req.body.issuingMonth,
-      issuingYear: req.body.issuingYear,
-      issuingCountry: req.body.issuingCountry,
-      issuingStateOrProvince: req.body.issuingStateOrProvince,
-      dateOfbirth: Date.now()
-    };
-    DrivingLicense.findOne({ user: req.user.id }).then(dL => {
-      // update
-      if (dL) {
-        DrivingLicense.findOneAndUpdate(
-          { user: req.user.id },
-          { $set: drivingLicense },
-          { new: true }
-        ).then(dL => res.json(dL));
-      } else {
-        // save new driving license
-        new Profile(drivingLicense).save().then(dL => res.json(dL));
-      }
-    });*/
     const drivingLicense = {
-      //user: req.user.id,
+      user: req.body.user.id,
       firstName: req.body.firstName,
       middleName: req.body.middleName ? req.body.middleName : "",
       lastName: req.body.lastName,
@@ -58,13 +33,24 @@ router.post(
       issuingYear: req.body.issuingYear,
       issuingCountry: req.body.issuingCountry,
       issuingStateOrProvince: req.body.issuingStateOrProvince,
-      birthDay: req.body.birthDay,
-      birthMonth: req.body.birthMonth,
-      birthYear: req.body.birthYear
+      birthDay: parseInt(req.body.birthDay, 10),
+      birthMonth: parseInt(req.body.birthMonth, 10),
+      birthYear: parseInt(req.body.birthYear, 10)
     };
-    console.log("driving license");
-    console.log(drivingLicense);
-    return res.json(drivingLicense);
+
+    DrivingLicense.findOne({ user: req.body.user.id }).then(dL => {
+      // update
+      if (dL) {
+        DrivingLicense.findOneAndUpdate(
+          { user: req.body.user.id },
+          { $set: drivingLicense },
+          { new: true }
+        ).then(dL => res.json(dL));
+      } else {
+        // save new driving license
+        new DrivingLicense(drivingLicense).save().then(dL => res.json(dL));
+      }
+    });
   }
 );
 

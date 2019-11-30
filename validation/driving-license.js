@@ -38,7 +38,6 @@ module.exports = function validateDrivingLicense(data) {
 
   if (data.licenseNumber) {
     const parsed = parseInt(data.licenseNumber, 10);
-
     if (isNaN(parsed)) {
       errors.licenseNumber = "License number is invalid";
     }

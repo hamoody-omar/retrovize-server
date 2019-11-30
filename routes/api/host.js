@@ -1,8 +1,21 @@
 const express = require("express");
 const unirest = require("unirest");
 const passport = require("passport");
-
 const router = express.Router();
+const path = require("path");
+const crypto = require("crypto");
+const mongoose = require("mongoose");
+const multer = require("multer");
+const GridFsStorage = require("multer-gridfs-storage");
+const Grid = require("gridfs-stream");
+
+// Load models
+const CarDescriptionFeatures = require("../../models/CarDescriptionFeatrues");
+const CarID = require("../../models/CarID");
+const CarSpecification = require("../../models/CarSpecification");
+const CarLocation = require("../../models/CarLocation");
+const CarRegistration = require("../../models/CarRegistration");
+const CarPriceAvailability = require("../../models/CarPriceAvailability");
 
 // Load input validations
 const validateGetCarSpecification = require("../../validation/get-car-specification");
@@ -10,6 +23,7 @@ const validateSaveCarSpecification = require("../../validation/save-car-specific
 const validateCarRegistration = require("../../validation/car-registration");
 const validateCarLocation = require("../../validation/car-location");
 const validateCarDesFtr = require("../../validation/car-description-features");
+const validateCarPriceAvailability = require("../../validation/car-price-availability");
 
 // Load DrivingLicense model
 //const CarSpecification = require("../../models/CarSpecification");
@@ -28,33 +42,90 @@ router.post(
       return res.status(400).jsonp(errors);
     }
 
-    /*const drivingLicense = {
-      user: req.user.id,
-      firstName: req.body.firstName,
-      middleName: req.body.middleName,
-      lastName: req.body.lastName,
-      licenseNumber: req.body.licenseNumber,
-      issuingMonth: req.body.issuingMonth,
-      issuingYear: req.body.issuingYear,
-      issuingCountry: req.body.issuingCountry,
-      issuingStateOrProvince: req.body.issuingStateOrProvince,
-      dateOfbirth: Date.now()
+    const specification = {
+      user: req.body.user.id,
+      carID: req.body.ID,
+      vin: req.body.specification.vin,
+      year: req.body.specification.year ? req.body.specification.year : "",
+      make: req.body.specification.make,
+      model: req.body.specification.model,
+      trim_level: req.body.specification.trim_level
+        ? req.body.specification.trim_level
+        : "",
+      engine: req.body.specification.engine
+        ? req.body.specification.engine
+        : "",
+      style: req.body.specification.style ? req.body.specification.style : "",
+      made_in: req.body.specification.made_in
+        ? req.body.specification.made_in
+        : "",
+      steering_type: req.body.specification.steering_type
+        ? req.body.specification.steering_type
+        : "",
+      anti_brake_system: req.body.specification.anti_brake_system
+        ? req.body.specification.anti_brake_system
+        : "",
+      tank_size: req.body.specification.tank_size
+        ? req.body.specification.tank_size
+        : "",
+      overall_height: req.body.specification.overall_height
+        ? req.body.specification.overall_height
+        : "",
+      overall_length: req.body.specification.overall_length
+        ? req.body.specification.overall_length
+        : "",
+      overall_width: req.body.specification.overall_width
+        ? req.body.specification.overall_width
+        : "",
+      standard_seating: req.body.specification.standard_seating
+        ? req.body.specification.standard_seating
+        : "",
+      optional_seating: req.body.specification.optional_seating
+        ? req.body.specification.optional_seating
+        : "",
+      highway_mileage: req.body.specification.highway_mileage
+        ? req.body.specification.highway_mileage
+        : "",
+      city_mileage: req.body.specification.city_mileage
+        ? req.body.specification.city_mileage
+        : "",
+      odometer: req.body.odometer,
+      transmission: req.body.transmission,
+      isClean: req.body.isClean
     };
-    DrivingLicense.findOne({ user: req.user.id }).then(dL => {
-      // update
-      if (dL) {
-        DrivingLicense.findOneAndUpdate(
-          { user: req.user.id },
-          { $set: drivingLicense },
-          { new: true }
-        ).then(dL => res.json(dL));
-      } else {
-        // save new driving license
-        new Profile(drivingLicense).save().then(dL => res.json(dL));
-      }
-    });*/
 
-    return res.json(req.body);
+    CarSpecification.findOne({
+      user: req.body.user.id,
+      carID: req.body.ID
+    }).then(cS => {
+      // update
+      if (cS) {
+        CarSpecification.findOneAndUpdate(
+          { user: req.body.user.id },
+          { $set: specification },
+          { new: true }
+        ).then(cS =>
+          CarID.findOneAndUpdate(
+            { user: req.body.user.id, carID: req.body.ID },
+            { $set: { carSpecification: cS } }
+          )
+            .then(cI => res.jsonp(cI))
+            .catch(res.status(400).jsonp({ id: "Something went wrong" }))
+        );
+      } else {
+        new CarSpecification(specification).save().then(cS => {
+          new CarID({
+            user: req.body.user.id,
+            carID: req.body.ID,
+            carSpecification: cS
+          })
+            .save()
+            .then(cI => res.jsonp(cI));
+        });
+      }
+    });
+
+    return res.jsonp(req.body);
   }
 );
 
@@ -94,7 +165,7 @@ router.post(
       }
       console.log("specification");
       console.log(uniReq.body.specification);
-      res.json(uniReq.body.specification);
+      res.jsonp(uniReq.body.specification);
     });*/
 
     const specification = {
@@ -117,7 +188,7 @@ router.post(
       highway_mileage: "30 miles/gallon",
       city_mileage: "21 miles/gallon"
     };
-    res.json(specification);
+    res.jsonp(specification);
   }
 );
 
@@ -135,7 +206,44 @@ router.post(
       return res.status(400).jsonp(errors);
     }
 
-    return res.json(req.body);
+    const carRegistration = {
+      user: req.body.user.id,
+      carID: req.body.ID,
+      plateNumber: req.body.plateNumber,
+      plateStateOrProvince: req.body.plateStateOrProvince
+    };
+
+    CarRegistration.findOne({
+      user: req.body.user.id,
+      carID: req.body.ID
+    }).then(cR => {
+      // update
+      if (cR) {
+        CarRegistration.findOneAndUpdate(
+          { user: req.body.user.id, carID: req.body.ID },
+          { $set: carRegistration },
+          { new: true }
+        ).then(cR =>
+          CarID.findOneAndUpdate(
+            { user: req.body.user.id, carID: req.body.ID },
+            { $set: { carRegistration: cR } }
+          )
+            .then(cI => res.jsonp(cI))
+            .catch(res.status(400).jsonp({ id: "Something went wrong" }))
+        );
+      } else {
+        new CarRegistration(carRegistration).save().then(cR =>
+          CarID.findOneAndUpdate(
+            { user: req.body.user.id, carID: req.body.ID },
+            { $set: { carRegistration: cR } }
+          )
+            .then(cI => res.jsonp(cI))
+            .catch(res.status(400).jsonp({ id: "Something went wrong" }))
+        );
+      }
+    });
+
+    return res.jsonp(req.body);
   }
 );
 
@@ -153,7 +261,46 @@ router.post(
       return res.status(400).jsonp(errors);
     }
 
-    return res.json(req.body);
+    const carLocation = {
+      user: req.body.user.id,
+      carID: req.body.ID,
+      locationCity: req.body.locationCity,
+      locationStateOrProvince: req.body.locationStateOrProvince,
+      locationStreetAddress: req.body.locationStreetAddress,
+      locationZipCode: req.body.locationZipCode,
+      locationCountry: req.body.locationCountry,
+      locationAptSuite: req.body.locationAptSuite
+        ? req.body.locationAptSuite
+        : ""
+        ? req.body.locationAptSuite
+        : ""
+    };
+
+    CarLocation.findOne({ user: req.body.user.id, carID: req.body.ID }).then(
+      cL => {
+        if (cL) {
+          CarLocation.findOneAndUpdate(
+            { user: req.body.user.id, carID: req.body.ID },
+            { $set: carLocation },
+            { new: true }
+          ).then(cL =>
+            CarID.findOneAndUpdate(
+              { user: req.body.user.id, carID: req.body.ID },
+              { $set: { carLocation: cL } }
+            ).then(cI => res.jsonp(cI))
+          );
+        } else {
+          new CarLocation(carLocation)
+            .save()
+            .then(cL =>
+              CarID.findOneAndUpdate(
+                { user: req.body.user.id, carID: req.body.ID },
+                { $set: { carLocation: cL } }
+              ).then(cI => res.jsonp(cI))
+            );
+        }
+      }
+    );
   }
 );
 
@@ -167,11 +314,307 @@ router.post(
     const { errors, isValid } = validateCarDesFtr(req.body);
 
     // check validation
+    /*if (!isValid) {
+      return res.status(400).jsonp(errors);
+    }*/
+
+    const carDescriptionFeatures = {
+      user: req.body.user.id,
+      carID: req.body.ID,
+      description: req.body.description,
+      features: req.body.features
+    };
+
+    CarDescriptionFeatures.findOne({
+      user: req.body.user.id,
+      carID: req.body.ID
+    }).then(cD => {
+      if (cD) {
+        CarDescriptionFeatures.findOneAndUpdate(
+          { user: req.body.user.id, carID: req.body.ID },
+          { $set: carDescriptionFeatures },
+          { new: true }
+        ).then(cD =>
+          CarID.findOneAndUpdate(
+            { user: req.body.user.id, carID: req.body.ID },
+            { $set: { carDescriptionFeatures: cD } }
+          ).then(cI => res.jsonp(cI))
+        );
+      } else {
+        new CarDescriptionFeatures(carDescriptionFeatures)
+          .save()
+          .then(cD =>
+            CarID.findOneAndUpdate(
+              { user: req.body.user.id, carID: req.body.ID },
+              { $set: { carDescriptionFeatures: cD } }
+            ).then(cI => res.jsonp(cI))
+          );
+      }
+    });
+  }
+);
+
+// @route   POST api/host/car-price-availability
+// @desc    Save car price and availability such GPS , Sunroof and many more
+// @access  Private
+router.post(
+  "/car-price-availability",
+  //passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    const { errors, isValid } = validateCarPriceAvailability(req.body);
+
+    // check validation
     if (!isValid) {
       return res.status(400).jsonp(errors);
     }
 
-    return res.json(req.body);
+    let advanceNotice;
+    switch (req.body.advanceNotice) {
+      case "12 hours":
+        advanceNotice = 12;
+        break;
+
+      case "1 day":
+        advanceNotice = 24;
+        break;
+
+      case "2 days":
+        advanceNotice = 48;
+        break;
+
+      case "3 days":
+        advanceNotice = 72;
+        break;
+
+      default:
+        advanceNotice: 12;
+    }
+
+    let minimumTrip;
+    switch (req.body.minimumTrip) {
+      case "Any":
+        minimumTrip = 24;
+        break;
+
+      case "1 day":
+        minimumTrip = 24;
+        break;
+
+      case "2 days":
+        minimumTrip = 48;
+        break;
+
+      case "3 days":
+        minimumTrip = 72;
+        break;
+
+      case "4 days":
+        minimumTrip = 96;
+        break;
+
+      case "5 days":
+        minimumTrip = 120;
+        break;
+
+      default:
+        minimumTrip: 24;
+    }
+
+    let maximumTrip;
+    switch (req.body.maximumTrip) {
+      case "Any":
+        maximumTrip = 24;
+        break;
+
+      case "5 days":
+        maximumTrip = 120;
+        break;
+
+      case "1 week":
+        maximumTrip = 168;
+        break;
+
+      case "2 weeks":
+        maximumTrip = 336;
+        break;
+
+      case "3 weeks":
+        maximumTrip = 504;
+        break;
+
+      case "1 month":
+        minimumTrip = 672;
+        break;
+
+      default:
+        maximumTrip: 24;
+    }
+
+    const carPriceAvail = {
+      user: req.body.user.id,
+      carID: req.body.ID,
+      dailyPrice: req.body.dailyPrice,
+      advanceNotice: advanceNotice,
+      minimumTrip: minimumTrip,
+      maximumTrip: maximumTrip
+    };
+
+    CarPriceAvailability.findOne({
+      user: req.body.user.id,
+      carID: req.body.ID
+    }).then(cPA => {
+      if (cPA) {
+        CarPriceAvailability.findOneAndUpdate(
+          { user: req.body.user.id, carID: req.body.ID },
+          { $set: carPriceAvail },
+          { new: true }
+        ).then(cPA =>
+          CarID.findOneAndUpdate(
+            { user: req.body.user.id, carID: req.body.ID },
+            { $set: { carPriceAvailability: cPA } }
+          ).then(cI => res.jsonp(cI))
+        );
+      } else {
+        new CarPriceAvailability(carPriceAvail)
+          .save()
+          .then(cPA =>
+            CarID.findOneAndUpdate(
+              { user: req.body.user.id, carID: req.body.ID },
+              { $set: { carPriceAvailability: cPA } }
+            ).then(cI => res.jsonp(cI))
+          );
+      }
+    });
+  }
+);
+/*
+// Mongo URI
+const mongoURI = require("../../config/keys").mongoURI;
+
+// Create mongo connection
+const conn = mongoose.createConnection(mongoURI);
+
+// Init gfs
+let gfs;
+
+conn.once("open", () => {
+  // Init stream
+  gfs = Grid(conn.db, mongoose.mongo);
+  gfs.collection("carPhotosUploads");
+});
+
+// Create storage engine
+const storage = new GridFsStorage({
+  url: mongoURI,
+  file: (req, file) => {
+    return new Promise((resolve, reject) => {
+      crypto.randomBytes(16, (err, buf) => {
+        if (err) {
+          return reject(err);
+        }
+        console.log("fillle");
+        console.log(file);
+        console.log();
+        console.log();
+        const filename = buf.toString("hex") + path.extname(file.originalname);
+        const fileInfo = {
+          filename: filename,
+          bucketName: "carPhotosUploads"
+        };
+        resolve(fileInfo);
+      });
+    });
+  }
+});*/
+
+const storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    cb(null, "./public/media/carPictures");
+  },
+  filename: function(req, file, cb) {
+    cb(null, Date.now() + file.originalname);
+  }
+});
+
+const imageFilter = (req, file, cb) => {
+  if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
+    cb(null, true);
+  } else {
+    cb(null, false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  //limits: { fileSize: 1024 * 1024 * 5 },
+  fileFilter: imageFilter
+});
+
+// @route POST /upload
+// @desc  Uploads file to DB
+// @access  Private
+router.post("/upload-car-photo", upload.single("imageData"), (req, res) => {
+  console.log(req.body.ID);
+  console.log(req.file.path);
+  console.log(req.file);
+  console.log(req.body.userid);
+
+  CarID.findOne({ user: req.body.userid, carID: req.body.ID }).then(cI => {
+    if (cI) {
+      console.log("we have the id let us update it");
+      const carPicturePaths = cI.carPicturePaths;
+      carPicturePaths.push(req.file.path);
+      CarID.findOneAndUpdate(
+        { user: req.body.userid, carID: req.body.ID },
+        { $set: { carPicturePaths: carPicturePaths } }
+      )
+        .then(cI => {
+          console.log("successful");
+          return res.jsonp(cI);
+        })
+        .catch(err => {
+          console.log("successful");
+          return res.status(400).jsonp({ picture: err });
+        });
+    } else {
+      console.log("we have a problem");
+      return res.status(400).jsonp({ ID: "car ID is not found!" });
+    }
+  });
+});
+
+// @route   POST api/host/publish-car
+// @desc    Publish the car on Retrovize
+// @access  Private
+router.post(
+  "/publish-car",
+  //passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    //const { errors, isValid } = validateCarDesFtr(req.body);
+
+    // check validation
+    /*if (!isValid) {
+      return res.status(400).jsonp(errors);
+    }*/
+
+    CarID.findOne({
+      user: req.body.user.id,
+      carID: req.body.ID
+    }).then(cI => {
+      if (cI) {
+        CarID.findOneAndUpdate(
+          { user: req.body.user.id, carID: req.body.ID },
+          { $set: { isPublished: true } },
+          { new: true }
+        ).then(cI => {
+          console.log("car publish successful");
+          return res.jsonp(cI);
+        });
+      } else {
+        console.log("we have a problem");
+        return res.status(400).jsonp({ ID: "car ID is not found!" });
+      }
+    });
   }
 );
 

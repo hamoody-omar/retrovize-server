@@ -12,7 +12,7 @@ const DrivingLicenseSchema = new Schema({
   },
   middleName: {
     type: String,
-    required: true
+    required: false
   },
   lastName: {
     type: String,
@@ -38,8 +38,16 @@ const DrivingLicenseSchema = new Schema({
     type: String,
     required: true
   },
-  dateOfbirth: {
-    type: Date,
+  birthDay: {
+    type: Number,
+    required: true
+  },
+  birthMonth: {
+    type: Number,
+    required: true
+  },
+  birthYear: {
+    type: Number,
     required: true
   },
   date: {
